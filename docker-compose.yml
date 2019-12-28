@@ -1,0 +1,73 @@
+version: '3'
+
+services:
+  postgres:
+    restart: always
+    image: postgres:9.6
+    env_file: ./piedpiper/config/.env
+    ports:
+       - "5432:5432"
+    volumes:
+      - piedpiper_db:/var/lib/postgresql/data
+
+  web:
+    restart: always
+    image: web
+    deploy:
+      mode: replicated
+      replicas: 2
+    env_file: ./piedpiper/config/.env
+    build: ./
+    command: >
+      bash -c "python wait_for_postgres.py &&
+               ./manage.py migrate &&
+               ./manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./:/code
+    ports:
+      - "8000:8000"
+    links:
+      - rabbit
+      - redis
+      - postgres
+    depends_on:
+      - postgres
+      - rabbit
+      - redis
+
+  redis:
+    restart: always
+    image: redis:latest
+    ports:
+      - '6379:6379'
+    expose:
+      - '6379'
+    volumes:
+      - piedpiper_redisdb:/data
+
+  worker:
+    build: ./
+    restart: always
+    command: celery -A piedpiper.taskapp worker --beat --loglevel=info
+    volumes:
+      - .:/code
+    links:
+      - rabbit
+      - redis
+    depends_on:
+      - web
+      - rabbit
+      - redis
+
+  rabbit:
+    restart: always
+    hostname: piedpiper-rabbit
+    image: rabbitmq:latest
+    env_file: ./piedpiper/config/.env
+    ports:
+      - "5676:5673"
+volumes:
+  piedpiper_db:
+    external: true
+  piedpiper_redisdb:
+    external: true
