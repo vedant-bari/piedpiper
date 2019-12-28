@@ -46,7 +46,7 @@ services:
       - piedpiper_redisdb:/data
 
   worker:
-    image: vedantbari40/piedpiper_worker:latest
+    image: vedantbari40/piedpiper_web:latest
     build: ./
     restart: always
     command: celery -A piedpiper.taskapp worker --beat --loglevel=info
